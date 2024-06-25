@@ -38,8 +38,6 @@ app.use(cors({
     credentials: true
   }));
 app.use(cookieParser());
-// app.use('/tours' , tourRoute)
-
 
 
 // Test route
@@ -48,7 +46,7 @@ app.get('/', (req, res) => {
 });
 
 // register
-app.post('/api/auth/register' , async (req,res) => {
+app.post('/api/auth/register' , async (req,res) => { 
     const { username, email, password } = req.body;
 
     // hash password
@@ -70,8 +68,8 @@ app.post('/api/auth/register' , async (req,res) => {
 })
 
 
-// login  //, verifyUser
-app.post('/api/auth/login' , async (req,res) => {
+// login 
+app.post('/api/auth/login' , async (req,res) => { 
     const { email, password } = req.body;
 
     try {
@@ -160,7 +158,7 @@ app.delete('/api/tours/:id' , verifyAdmin , async (req,res) => {
             "DELETE FROM tours WHERE id = $1 RETURNING *",
             [id]
         );
-
+        
         if (result.rows.length > 0) {
             res.status(200).json({ success: true, message: 'Tour deleted successfully'});
         } else {
@@ -187,7 +185,6 @@ app.get('/api/tours/:id', async (req, res) => {
         if (tourResult.rows.length > 0) {
             const tour = tourResult.rows[0];
             const reviews = reviewsResult.rows;
-
             res.status(200).json({success: true, message: 'Get single tour successfully', data: { tour, reviews }});
         } else {
             res.status(404).json({ success: false, message: 'Tour not found' });
@@ -245,7 +242,6 @@ app.get('/api/tours/search/getTourBysearch', async (req, res) => {
 app.get('/api/tours/search/getFeaturedTours', async (req, res) => {
 
     const page = parseInt(req.query.page) || 0;
- 
     try {
         const result = await db.query(
             `SELECT tours.*, COALESCE(json_agg(tour_reviews.*), '[]') AS reviews 
@@ -334,7 +330,6 @@ app.get('/users/:id', verifyUser , async (req, res) => {
 
     try {
         const result = await db.query("SELECT * FROM users WHERE id = $1", [id]);
-
         if (result.rows.length > 0) {
             res.status(200).json({ success: true, message: 'User found', data: result.rows[0] });
         } else {
@@ -352,7 +347,6 @@ app.get('/users', verifyAdmin , async (req, res) => {
 
     try {
         const result = await db.query("SELECT * FROM users");
-    
         res.status(200).json({ success: true,  data: result.rows });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Failed to fetch tours', error: error.message });
@@ -366,6 +360,11 @@ app.post('/api/review/:tourId', verifyUser , async (req, res) => {
     const tourId = req.params.tourId; // รับค่ามาจาก endpoint 
     const { username, review_text, rating } = req.body;
 
+       // ตรวจสอบข้อมูลที่รับมา
+       if (!username || !review_text || rating == null) {
+        return res.status(400).json({ success: false, message: "All fields are required" });
+    }
+
     try {
         // เพิ่มข้อมูลรีวิวใหม่ลงในตาราง tour_reviews
         const newReview = await db.query(
@@ -373,13 +372,47 @@ app.post('/api/review/:tourId', verifyUser , async (req, res) => {
             VALUES ($1, $2, $3, $4) RETURNING id`,
             [tourId, username, review_text, rating]
         );
-
         res.status(200).json({ success: true, message: "Review submitted" , data: newReview.rows[0] });
     } catch (error) {
-        console.error(error.message);
+        console.error('Error submitting review:', error); // log ข้อผิดพลาดที่ละเอียดขึ้น
         res.status(500).json({ success: false, message: "Failed to submit review" });
     }
 });
+
+// reviews ถ้าทำแบบวิธีที่ 2 จะปลอดภัยกว่าเพรราะ username ถูกเรียกผ่าน token ที่ผู้ใช้ผ่านการยืนยันตนแล้วผ่าน token
+// app.post('/api/review/:tourId', verifyUser, async (req, res) => {
+//     const tourId = req.params.tourId; // รับค่ามาจาก endpoint 
+//     const { username, review_text, rating } = req.body;
+
+//     // ตรวจสอบข้อมูลที่รับมา
+//     if (!username || !review_text || rating == null) {
+//         console.log('Validation error:', { username, review_text, rating });
+//         return res.status(400).json({ success: false, message: "All fields are required" });
+//     }
+
+//     try {
+//         console.log('Inserting review with values:', {
+//             tourId,
+//             username,
+//             review_text,
+//             rating
+//         });
+
+//         // เพิ่มข้อมูลรีวิวใหม่ลงในตาราง tour_reviews
+//         const newReview = await db.query(
+//             `INSERT INTO tour_reviews (tour_id, username, review_text, rating)
+//             VALUES ($1, $2, $3, $4) RETURNING id`,
+//             [tourId, username, review_text, rating]
+//         );
+
+//         console.log('Review inserted successfully:', newReview.rows[0]);
+
+//         res.status(200).json({ success: true, message: "Review submitted", data: newReview.rows[0] });
+//     } catch (error) {
+//         console.error('Error submitting review:', error); // log ข้อผิดพลาดที่ละเอียดขึ้น
+//         res.status(500).json({ success: false, message: "Failed to submit review" });
+//     }
+// });
 
 //Booking part
 
@@ -388,10 +421,8 @@ app.post('/api/booking', verifyUser , async (req,res) => {
     const {userId , userEmail , tourName  , fullName  , guestSize , phone , bookAt} = req.body;
 
     try {
-
         const result = await db.query("INSERT INTO bookings (userId , userEmail ,tourName  , fullName , guestSize , phone , bookAt ) VALUES ($1 , $2 ,$3 ,$4 ,$5 ,$6 ,$7)"
         ,[userId , userEmail ,tourName  , fullName  ,guestSize , phone , bookAt ])
-        
         res.status(200).json({success:true , message:'Your tour is booked' , data: result.rows[0]})
     } catch (error) {
         console.log(error);
@@ -406,10 +437,7 @@ app.get('/api/booking/:id', verifyUser , async (req,res) => {
 
     try {
         const result = await db.query("SELECT * FROM bookings WHERE id = $1",[id]);
-
-
         res.status(200).json({success:true , message:'Successful' , data: result.rows[0]})
-
     } catch (error) {
         res.status(404).json({success:false , message:'data not found'})
     }
@@ -420,9 +448,7 @@ app.get('/api/booking', verifyAdmin , async (req,res) => {
  
     try {
         const result = await db.query("SELECT * FROM bookings");
-
         res.status(200).json({success:true , message:'Successful' , data: result.rows})
-
     } catch (error) {
         res.status(500).json({success:false , message:'internal server error'})
     }
